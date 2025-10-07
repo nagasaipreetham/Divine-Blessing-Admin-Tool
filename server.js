@@ -12,6 +12,36 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Helper function to generate version timestamp
+function generateVersion() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    return `${year}${month}${day}${hours}${minutes}${seconds}`;
+}
+
+// Helper function to update version and save JSON data
+async function saveDataWithVersion(filePath, data) {
+    // Update version timestamp
+    data.version = generateVersion();
+    
+    // Ensure gods array exists
+    if (!data.gods) {
+        data.gods = [];
+    }
+    
+    // Write to file with proper formatting
+    await fs.writeJson(filePath, data, { spaces: 2 });
+    
+    console.log(`Data saved with version: ${data.version}`);
+    return data;
+}
+
 // Store configuration - defaults to assets folder
 let config = {
     jsonPath: path.join(__dirname, 'assets', 'gods_songs.json'),
@@ -54,7 +84,10 @@ app.post('/api/config', (req, res) => {
             // Ensure the directory exists
             fs.ensureDirSync(path.dirname(finalJsonPath));
             // Create the default JSON file with initial structure
-            const defaultData = { gods: [] };
+            const defaultData = { 
+                version: generateVersion(),
+                gods: [] 
+            };
             fs.writeJsonSync(finalJsonPath, defaultData, { spaces: 2 });
             console.log(`Created default JSON file: ${finalJsonPath}`);
         } catch (error) {
@@ -71,7 +104,10 @@ app.post('/api/config', (req, res) => {
         
         if (fileContent === '') {
             // Empty file - initialize with default structure
-            data = { gods: [] };
+            data = { 
+                version: generateVersion(),
+                gods: [] 
+            };
             fs.writeJsonSync(finalJsonPath, data, { spaces: 2 });
             console.log('Initialized empty JSON file with default structure');
         } else {
@@ -81,6 +117,7 @@ app.post('/api/config', (req, res) => {
             // Ensure it has the required structure
             if (!data.gods) {
                 data.gods = [];
+                data.version = generateVersion();
                 fs.writeJsonSync(finalJsonPath, data, { spaces: 2 });
                 console.log('Added missing gods array to JSON file');
             }
@@ -111,7 +148,10 @@ app.get('/api/data', (req, res) => {
         
         if (fileContent === '') {
             // Empty file - return default structure
-            const emptyData = { gods: [] };
+            const emptyData = { 
+                version: generateVersion(),
+                gods: [] 
+            };
             res.json(emptyData);
             return;
         }
@@ -123,11 +163,19 @@ app.get('/api/data', (req, res) => {
             data.gods = [];
         }
         
+        // Add version if missing (for backward compatibility)
+        if (!data.version) {
+            data.version = generateVersion();
+        }
+        
         res.json(data);
     } catch (error) {
         console.error('Error reading JSON file:', error);
         // Return empty structure if file is corrupted
-        const emptyData = { gods: [] };
+        const emptyData = { 
+            version: generateVersion(),
+            gods: [] 
+        };
         res.json(emptyData);
     }
 });
@@ -143,8 +191,15 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
         let data;
         try {
             data = await fs.readJson(config.jsonPath);
+            // Ensure version exists for backward compatibility
+            if (!data.version) {
+                data.version = generateVersion();
+            }
         } catch {
-            data = { gods: [] };
+            data = { 
+                version: generateVersion(),
+                gods: [] 
+            };
         }
 
         if (data.gods.find(god => god.id === id)) {
@@ -175,7 +230,7 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
         data.gods.push(newGod);
         data.gods.sort((a, b) => a.displayOrder - b.displayOrder);
 
-        await fs.writeJson(config.jsonPath, data, { spaces: 2 });
+        await saveDataWithVersion(config.jsonPath, data);
 
         res.json({ message: 'God added successfully', god: newGod });
 
@@ -200,6 +255,10 @@ app.post('/api/songs', upload.fields([
         let data;
         try {
             data = await fs.readJson(config.jsonPath);
+            // Ensure version exists for backward compatibility
+            if (!data.version) {
+                data.version = generateVersion();
+            }
         } catch {
             return res.status(400).json({ error: 'JSON file not found' });
         }
@@ -271,7 +330,7 @@ app.post('/api/songs', upload.fields([
         god.songs.push(newSong);
         god.songs.sort((a, b) => a.displayOrder - b.displayOrder);
 
-        await fs.writeJson(config.jsonPath, data, { spaces: 2 });
+        await saveDataWithVersion(config.jsonPath, data);
 
         res.json({ message: 'Song added successfully', song: newSong });
 
@@ -293,6 +352,10 @@ app.delete('/api/gods/:godId', async (req, res) => {
         let data;
         try {
             data = await fs.readJson(config.jsonPath);
+            // Ensure version exists for backward compatibility
+            if (!data.version) {
+                data.version = generateVersion();
+            }
         } catch {
             return res.status(400).json({ error: 'JSON file not found' });
         }
@@ -344,7 +407,7 @@ app.delete('/api/gods/:godId', async (req, res) => {
         // Remove god from data
         data.gods.splice(godIndex, 1);
 
-        await fs.writeJson(config.jsonPath, data, { spaces: 2 });
+        await saveDataWithVersion(config.jsonPath, data);
 
         res.json({ message: 'God and all associated songs deleted successfully' });
 
@@ -366,6 +429,10 @@ app.delete('/api/songs/:songId', async (req, res) => {
         let data;
         try {
             data = await fs.readJson(config.jsonPath);
+            // Ensure version exists for backward compatibility
+            if (!data.version) {
+                data.version = generateVersion();
+            }
         } catch {
             return res.status(400).json({ error: 'JSON file not found' });
         }
@@ -412,7 +479,7 @@ app.delete('/api/songs/:songId', async (req, res) => {
             }
         }
 
-        await fs.writeJson(config.jsonPath, data, { spaces: 2 });
+        await saveDataWithVersion(config.jsonPath, data);
 
         res.json({ message: 'Song deleted successfully' });
 

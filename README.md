@@ -38,6 +38,7 @@ A powerful, user-friendly admin interface for managing gods, songs, and multimed
 - **Auto-generation**: Automatic ID generation from names
 - **Keyboard Shortcuts**: Quick access to common actions
 - **Status Feedback**: Real-time status messages and progress indicators
+- **Version Tracking**: Automatic versioning with timestamp display
 - **Offline Operation**: Works completely offline - no internet required
 
 ### 🔧 **Technical Features**
@@ -50,28 +51,64 @@ A powerful, user-friendly admin interface for managing gods, songs, and multimed
 ## 🧠 Core Concepts
 
 ### **Data Structure**
-The application manages a hierarchical structure:
+The application manages a hierarchical structure with automatic versioning:
 ```
-Gods (Root Level)
-├── God 1
-│   ├── Metadata (ID, Name, Image, Display Order)
-│   └── Songs[]
-│       ├── Song 1 (Audio, Lyrics, Metadata)
-│       ├── Song 2
-│       └── ...
-├── God 2
-└── ...
+JSON Root
+├── version: "20251007203758"    # Auto-generated timestamp
+└── gods: []                     # Array of gods
+    ├── God 1
+    │   ├── Metadata (ID, Name, Image, Display Order)
+    │   └── Songs[]
+    │       ├── Song 1 (Audio, Lyrics, Metadata)
+    │       ├── Song 2
+    │       └── ...
+    ├── God 2
+    └── ...
 ```
+
+### **Automatic Versioning**
+Every change to the data automatically updates the version timestamp:
+- **Format**: `yyyyMMddHHmmss` (e.g., `20251007203758`)
+- **Updates on**: Add/delete gods, add/delete songs, any data modification
+- **Purpose**: Track changes, sync detection, data integrity
 
 ### **File Organization**
 ```
 assets/
-├── gods_songs.json          # Main data file
+├── gods_songs.json          # Main data file with versioning
 ├── images/                  # God images
 ├── audio/                   # Song audio files
 └── lyrics/
     ├── telugu/             # Telugu lyrics (.lrc/.txt)
     └── english/            # English lyrics (.lrc/.txt)
+```
+
+### **JSON Structure Example**
+```json
+{
+  "version": "20251007203758",
+  "gods": [
+    {
+      "id": "god_shiva",
+      "name": "Lord Shiva",
+      "imageFileName": "shiva.png",
+      "displayOrder": 1,
+      "songs": [
+        {
+          "id": "song_shiva_1",
+          "title": "Shiva Tandava Stotram",
+          "godId": "god_shiva",
+          "languageDefault": "telugu",
+          "audioFileName": "song_shiva_1.mp3",
+          "lyricsTeluguFileName": "song_shiva_1_te.lrc",
+          "lyricsEnglishFileName": "song_shiva_1_en.lrc",
+          "duration": 420000,
+          "displayOrder": 1
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### **Workflow**
