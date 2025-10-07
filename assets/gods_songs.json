@@ -1,4 +1,31 @@
 {
-  "version": "20251007235236",
-  "gods": []
+  "version": "20251008014838",
+  "gods": [
+    {
+      "id": "god_shiva",
+      "name": "Lord Shiva",
+      "imageFileName": "1391600.jpg",
+      "displayOrder": 1,
+      "songs": [
+        {
+          "id": "song_shiva_20251008012332",
+          "title": "lingstakam",
+          "godId": "god_shiva",
+          "languageDefault": "telugu",
+          "audioFileName": "",
+          "lyricsTeluguFileName": null,
+          "lyricsEnglishFileName": null,
+          "duration": 0,
+          "displayOrder": 1
+        }
+      ]
+    },
+    {
+      "id": "god_devi",
+      "name": "Lord Devi",
+      "imageFileName": "1372162 (1).jpeg",
+      "displayOrder": 2,
+      "songs": []
+    }
+  ]
 }

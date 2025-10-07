@@ -21,25 +21,89 @@ function generateVersion() {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
-    
+
     return `${year}${month}${day}${hours}${minutes}${seconds}`;
+}
+
+// Helper function to generate God ID from name
+function generateGodId(name, existingGods = []) {
+    const baseId = "god_" + name.toLowerCase().replace(/\s+/g, "_");
+
+    // Check if ID already exists
+    const existingIds = existingGods.map(god => god.id);
+    if (!existingIds.includes(baseId)) {
+        return baseId;
+    }
+
+    // If duplicate, add random suffix
+    let attempts = 0;
+    while (attempts < 100) {
+        const suffix = Math.floor(Math.random() * 999) + 1;
+        const newId = `${baseId}_${suffix}`;
+        if (!existingIds.includes(newId)) {
+            return newId;
+        }
+        attempts++;
+    }
+
+    // Fallback with timestamp
+    return `${baseId}_${Date.now()}`;
+}
+
+// Helper function to generate Song ID
+function generateSongId(parentGodId, existingGods = []) {
+    const godName = parentGodId.replace("god_", "");
+    const timestamp = generateVersion();
+    const baseId = `song_${godName}_${timestamp}`;
+
+    // Check if ID already exists across all songs
+    const allSongs = existingGods.flatMap(god => god.songs || []);
+    const existingIds = allSongs.map(song => song.id);
+
+    if (!existingIds.includes(baseId)) {
+        return baseId;
+    }
+
+    // If duplicate, add random suffix
+    let attempts = 0;
+    while (attempts < 100) {
+        const suffix = Math.floor(Math.random() * 999) + 1;
+        const newId = `${baseId}_${suffix}`;
+        if (!existingIds.includes(newId)) {
+            return newId;
+        }
+        attempts++;
+    }
+
+    // Fallback with additional timestamp
+    return `${baseId}_${Date.now()}`;
 }
 
 // Helper function to update version and save JSON data
 async function saveDataWithVersion(filePath, data) {
-    // Update version timestamp
-    data.version = generateVersion();
-    
-    // Ensure gods array exists
-    if (!data.gods) {
-        data.gods = [];
+    try {
+        // Update version timestamp
+        data.version = generateVersion();
+
+        // Ensure gods array exists
+        if (!data.gods) {
+            data.gods = [];
+        }
+
+        // Check if file exists before saving
+        if (!fs.existsSync(filePath)) {
+            throw new Error(`JSON file not found: "${filePath}"`);
+        }
+
+        // Write to file with proper formatting
+        await fs.writeJson(filePath, data, { spaces: 2 });
+
+        console.log(`✅ Data saved with version: ${data.version}`);
+        return data;
+    } catch (error) {
+        console.error(`❌ Error saving data:`, error);
+        throw error;
     }
-    
-    // Write to file with proper formatting
-    await fs.writeJson(filePath, data, { spaces: 2 });
-    
-    console.log(`Data saved with version: ${data.version}`);
-    return data;
 }
 
 // Store configuration - defaults to assets folder
@@ -74,67 +138,104 @@ app.get('/api/config', (req, res) => {
 app.post('/api/config', (req, res) => {
     const { jsonPath, androidProjectPath } = req.body;
 
-    // Use default paths if empty - assets folder for JSON
-    const finalJsonPath = jsonPath || path.join(__dirname, 'assets', 'gods_songs.json');
-    const finalAndroidPath = androidProjectPath || path.join(__dirname, 'assets');
-
-    // Check if file exists, create if it doesn't
-    if (!fs.existsSync(finalJsonPath)) {
-        try {
-            // Ensure the directory exists
-            fs.ensureDirSync(path.dirname(finalJsonPath));
-            // Create the default JSON file with initial structure
-            const defaultData = { 
-                version: generateVersion(),
-                gods: [] 
-            };
-            fs.writeJsonSync(finalJsonPath, defaultData, { spaces: 2 });
-            console.log(`Created default JSON file: ${finalJsonPath}`);
-        } catch (error) {
-            return res.status(400).json({ 
-                error: `Could not create JSON file at ${finalJsonPath}: ${error.message}` 
-            });
+    // Helper function to clean and validate paths (NO AUTO-CREATION)
+    function cleanPath(inputPath) {
+        if (!inputPath || inputPath.trim() === '') {
+            return null;
         }
+
+        let cleanedPath = inputPath.trim();
+
+        // Remove quotes if present (handle both single and double quotes)
+        if ((cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) ||
+            (cleanedPath.startsWith("'") && cleanedPath.endsWith("'"))) {
+            cleanedPath = cleanedPath.slice(1, -1);
+        }
+
+        // Normalize path separators
+        cleanedPath = path.normalize(cleanedPath);
+
+        // Make absolute if not already
+        if (!path.isAbsolute(cleanedPath)) {
+            cleanedPath = path.resolve(cleanedPath);
+        }
+
+        return cleanedPath;
+    }
+
+    // Use default paths if empty
+    const defaultJsonPath = path.join(__dirname, 'assets', 'gods_songs.json');
+    const defaultAndroidPath = path.join(__dirname, 'assets');
+
+    const finalJsonPath = cleanPath(jsonPath) || defaultJsonPath;
+    const finalAndroidPath = cleanPath(androidProjectPath) || defaultAndroidPath;
+
+    console.log(`📁 Checking JSON path: "${finalJsonPath}"`);
+    console.log(`📁 Checking Android path: "${finalAndroidPath}"`);
+
+    // Check if JSON file exists (DO NOT CREATE)
+    if (!fs.existsSync(finalJsonPath)) {
+        console.log(`❌ JSON file not found: "${finalJsonPath}"`);
+        return res.status(400).json({
+            error: `JSON file not found at: "${finalJsonPath}". Please ensure the file exists or use a different path.`,
+            suggestion: 'Make sure the path is correct and the file exists. The system will not create files automatically.'
+        });
+    }
+
+    // Check if Android directory exists (DO NOT CREATE)
+    if (!fs.existsSync(finalAndroidPath)) {
+        console.log(`❌ Android directory not found: "${finalAndroidPath}"`);
+        return res.status(400).json({
+            error: `Android directory not found at: "${finalAndroidPath}". Please ensure the directory exists or use a different path.`,
+            suggestion: 'Make sure the path is correct and the directory exists. The system will not create directories automatically.'
+        });
     }
 
     // Try to read and validate the JSON file
     try {
+        console.log(`📖 Reading JSON file: "${finalJsonPath}"`);
         let data;
         const fileContent = fs.readFileSync(finalJsonPath, 'utf8').trim();
-        
+
         if (fileContent === '') {
-            // Empty file - initialize with default structure
-            data = { 
-                version: generateVersion(),
-                gods: [] 
-            };
-            fs.writeJsonSync(finalJsonPath, data, { spaces: 2 });
-            console.log('Initialized empty JSON file with default structure');
+            console.log(`❌ JSON file is empty: "${finalJsonPath}"`);
+            return res.status(400).json({
+                error: `JSON file is empty: "${finalJsonPath}". Please add valid JSON content to the file.`,
+                suggestion: 'The file should contain at least: {"version": "20241008000000", "gods": []}'
+            });
         } else {
             // Try to parse existing content
             data = JSON.parse(fileContent);
-            
+            console.log(`✅ JSON file is valid and readable`);
+
             // Ensure it has the required structure
             if (!data.gods) {
-                data.gods = [];
-                data.version = generateVersion();
-                fs.writeJsonSync(finalJsonPath, data, { spaces: 2 });
-                console.log('Added missing gods array to JSON file');
+                console.log(`⚠️  JSON file missing 'gods' array, but file is valid`);
             }
         }
     } catch (error) {
-        return res.status(400).json({ 
-            error: `Invalid JSON file: ${error.message}. Please ensure the file is valid JSON or empty.` 
+        console.log(`❌ Invalid JSON file: "${finalJsonPath}"`);
+        return res.status(400).json({
+            error: `Invalid JSON file: ${error.message}. Please ensure the file contains valid JSON.`,
+            suggestion: 'Check the JSON syntax in your file. You can use an online JSON validator.'
         });
     }
 
+    // All validations passed
     config.jsonPath = finalJsonPath;
     config.androidProjectPath = finalAndroidPath;
 
-    res.json({ 
-        message: 'Configuration updated successfully', 
-        config,
-        info: 'Empty JSON files are automatically initialized with the correct structure'
+    console.log(`✅ Configuration updated successfully`);
+    console.log(`✅ JSON path: "${finalJsonPath}"`);
+    console.log(`✅ Android path: "${finalAndroidPath}"`);
+
+    res.json({
+        message: 'Configuration updated successfully! Both paths are valid and accessible.',
+        config: {
+            jsonPath: finalJsonPath,
+            androidProjectPath: finalAndroidPath
+        },
+        info: 'Files and directories must exist - no automatic creation'
     });
 });
 
@@ -145,36 +246,36 @@ app.get('/api/data', (req, res) => {
 
     try {
         const fileContent = fs.readFileSync(config.jsonPath, 'utf8').trim();
-        
+
         if (fileContent === '') {
             // Empty file - return default structure
-            const emptyData = { 
+            const emptyData = {
                 version: generateVersion(),
-                gods: [] 
+                gods: []
             };
             res.json(emptyData);
             return;
         }
 
         const data = JSON.parse(fileContent);
-        
+
         // Ensure data has the required structure
         if (!data.gods) {
             data.gods = [];
         }
-        
+
         // Add version if missing (for backward compatibility)
         if (!data.version) {
             data.version = generateVersion();
         }
-        
+
         res.json(data);
     } catch (error) {
         console.error('Error reading JSON file:', error);
         // Return empty structure if file is corrupted
-        const emptyData = { 
+        const emptyData = {
             version: generateVersion(),
-            gods: [] 
+            gods: []
         };
         res.json(emptyData);
     }
@@ -182,7 +283,11 @@ app.get('/api/data', (req, res) => {
 
 app.post('/api/gods', upload.single('image'), async (req, res) => {
     try {
-        const { id, name, displayOrder } = req.body;
+        const { name, displayOrder } = req.body; // Removed id from destructuring
+
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ error: 'God name is required' });
+        }
 
         if (!config.jsonPath) {
             return res.status(400).json({ error: 'JSON path not configured' });
@@ -196,15 +301,15 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
                 data.version = generateVersion();
             }
         } catch {
-            data = { 
+            data = {
                 version: generateVersion(),
-                gods: [] 
+                gods: []
             };
         }
 
-        if (data.gods.find(god => god.id === id)) {
-            return res.status(400).json({ error: 'God ID already exists' });
-        }
+        // Auto-generate ID and add "Lord" prefix to name
+        const autoId = generateGodId(name.trim(), data.gods);
+        const autoName = `Lord ${name.trim()}`;
 
         let imageFileName = '';
 
@@ -220,8 +325,8 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
         }
 
         const newGod = {
-            id,
-            name,
+            id: autoId,
+            name: autoName,
             imageFileName,
             displayOrder: parseInt(displayOrder) || 0,
             songs: []
@@ -232,7 +337,15 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
 
         await saveDataWithVersion(config.jsonPath, data);
 
-        res.json({ message: 'God added successfully', god: newGod });
+        console.log(`✅ God added: ID="${autoId}", Name="${autoName}"`);
+        res.json({
+            message: 'God added successfully',
+            god: newGod,
+            autoGenerated: {
+                id: autoId,
+                name: autoName
+            }
+        });
 
     } catch (error) {
         console.error('Error adding god:', error);
@@ -246,7 +359,15 @@ app.post('/api/songs', upload.fields([
     { name: 'lyricsEnglishFile', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const { id, title, godId, languageDefault, duration, displayOrder } = req.body;
+        const { title, godId, languageDefault, duration, displayOrder } = req.body; // Removed id from destructuring
+
+        if (!title || title.trim() === '') {
+            return res.status(400).json({ error: 'Song title is required' });
+        }
+
+        if (!godId) {
+            return res.status(400).json({ error: 'God ID is required' });
+        }
 
         if (!config.jsonPath) {
             return res.status(400).json({ error: 'JSON path not configured' });
@@ -268,10 +389,8 @@ app.post('/api/songs', upload.fields([
             return res.status(400).json({ error: 'God not found' });
         }
 
-        const allSongs = data.gods.flatMap(g => g.songs);
-        if (allSongs.find(song => song.id === id)) {
-            return res.status(400).json({ error: 'Song ID already exists' });
-        }
+        // Auto-generate song ID
+        const autoId = generateSongId(godId, data.gods);
 
         let audioFileName = '';
         let teluguLyricsFileName = '';
@@ -316,8 +435,8 @@ app.post('/api/songs', upload.fields([
         }
 
         const newSong = {
-            id,
-            title,
+            id: autoId,
+            title: title.trim(),
             godId,
             languageDefault: languageDefault || 'telugu',
             audioFileName,
@@ -332,7 +451,14 @@ app.post('/api/songs', upload.fields([
 
         await saveDataWithVersion(config.jsonPath, data);
 
-        res.json({ message: 'Song added successfully', song: newSong });
+        console.log(`✅ Song added: ID="${autoId}", Title="${title.trim()}"`);
+        res.json({
+            message: 'Song added successfully',
+            song: newSong,
+            autoGenerated: {
+                id: autoId
+            }
+        });
 
     } catch (error) {
         console.error('Error adding song:', error);
@@ -489,6 +615,67 @@ app.delete('/api/songs/:songId', async (req, res) => {
     }
 });
 
+// Preview auto-generated values endpoint
+app.post('/api/preview-god', async (req, res) => {
+    try {
+        const { name } = req.body;
+
+        if (!name || name.trim() === '') {
+            return res.json({
+                id: '',
+                name: ''
+            });
+        }
+
+        let data = { gods: [] };
+        if (config.jsonPath && fs.existsSync(config.jsonPath)) {
+            try {
+                data = await fs.readJson(config.jsonPath);
+            } catch (error) {
+                // Use empty data if file can't be read
+            }
+        }
+
+        const previewId = generateGodId(name.trim(), data.gods);
+        const previewName = `Lord ${name.trim()}`;
+
+        res.json({
+            id: previewId,
+            name: previewName
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate preview' });
+    }
+});
+
+// Preview song ID endpoint
+app.post('/api/preview-song', async (req, res) => {
+    try {
+        const { godId } = req.body;
+
+        if (!godId) {
+            return res.json({ id: '' });
+        }
+
+        let data = { gods: [] };
+        if (config.jsonPath && fs.existsSync(config.jsonPath)) {
+            try {
+                data = await fs.readJson(config.jsonPath);
+            } catch (error) {
+                // Use empty data if file can't be read
+            }
+        }
+
+        const previewId = generateSongId(godId, data.gods);
+
+        res.json({
+            id: previewId
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate song preview' });
+    }
+});
+
 // File browser endpoint for better path detection
 app.post('/api/browse-file', (req, res) => {
     try {
@@ -498,7 +685,7 @@ app.post('/api/browse-file', (req, res) => {
         const userHome = os.homedir();
         const desktop = path.join(userHome, 'Desktop');
         const documents = path.join(userHome, 'Documents');
-        
+
         res.json({
             suggestions: {
                 desktop: desktop,
