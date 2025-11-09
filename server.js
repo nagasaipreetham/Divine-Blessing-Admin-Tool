@@ -106,10 +106,10 @@ async function saveDataWithVersion(filePath, data) {
     }
 }
 
-// Store configuration - defaults to assets folder
+// Store configuration - defaults to Android project assets folder
 let config = {
-    jsonPath: path.join(__dirname, 'assets', 'gods_songs.json'),
-    androidProjectPath: path.join(__dirname, 'assets')
+    jsonPath: 'C:\\Users\\nagas\\Desktop\\Divine_Blessing-Cursor-trae\\app\\src\\main\\assets\\gods_songs.json',
+    androidProjectPath: 'C:\\Users\\nagas\\Desktop\\Divine_Blessing-Cursor-trae\\app\\src\\main\\assets'
 };
 
 // Configure multer for file uploads
@@ -164,8 +164,8 @@ app.post('/api/config', (req, res) => {
     }
 
     // Use default paths if empty
-    const defaultJsonPath = path.join(__dirname, 'assets', 'gods_songs.json');
-    const defaultAndroidPath = path.join(__dirname, 'assets');
+    const defaultJsonPath = 'C:\\Users\\nagas\\Desktop\\Divine_Blessing-Cursor-trae\\app\\src\\main\\assets\\gods_songs.json';
+    const defaultAndroidPath = 'C:\\Users\\nagas\\Desktop\\Divine_Blessing-Cursor-trae\\app\\src\\main\\assets';
 
     const finalJsonPath = cleanPath(jsonPath) || defaultJsonPath;
     const finalAndroidPath = cleanPath(androidProjectPath) || defaultAndroidPath;
@@ -314,7 +314,7 @@ app.post('/api/gods', upload.single('image'), async (req, res) => {
         let imageFileName = '';
 
         if (req.file) {
-            const imageDir = path.join(__dirname, 'assets', 'images');
+            const imageDir = path.join(config.androidProjectPath, 'images');
             await fs.ensureDir(imageDir);
 
             const imagePath = path.join(imageDir, req.file.originalname);
@@ -398,7 +398,7 @@ app.post('/api/songs', upload.fields([
 
         if (req.files) {
             if (req.files.audio && req.files.audio[0]) {
-                const audioDir = path.join(__dirname, 'assets', 'audio');
+                const audioDir = path.join(config.androidProjectPath, 'audio');
                 await fs.ensureDir(audioDir);
 
                 const audioFile = req.files.audio[0];
@@ -410,7 +410,7 @@ app.post('/api/songs', upload.fields([
             }
 
             if (req.files.lyricsTeluguFile && req.files.lyricsTeluguFile[0]) {
-                const lyricsDir = path.join(__dirname, 'assets', 'lyrics', 'telugu');
+                const lyricsDir = path.join(config.androidProjectPath, 'lyrics', 'telugu');
                 await fs.ensureDir(lyricsDir);
 
                 const lyricsFile = req.files.lyricsTeluguFile[0];
@@ -422,7 +422,7 @@ app.post('/api/songs', upload.fields([
             }
 
             if (req.files.lyricsEnglishFile && req.files.lyricsEnglishFile[0]) {
-                const lyricsDir = path.join(__dirname, 'assets', 'lyrics', 'english');
+                const lyricsDir = path.join(config.androidProjectPath, 'lyrics', 'english');
                 await fs.ensureDir(lyricsDir);
 
                 const lyricsFile = req.files.lyricsEnglishFile[0];
@@ -495,7 +495,7 @@ app.delete('/api/gods/:godId', async (req, res) => {
 
         // Delete associated files
         if (god.imageFileName) {
-            const imagePath = path.join(__dirname, 'assets', 'images', god.imageFileName);
+            const imagePath = path.join(config.androidProjectPath, 'images', god.imageFileName);
             if (await fs.pathExists(imagePath)) {
                 await fs.remove(imagePath);
             }
@@ -506,7 +506,7 @@ app.delete('/api/gods/:godId', async (req, res) => {
             for (const song of god.songs) {
                 // Delete audio file
                 if (song.audioFileName) {
-                    const audioPath = path.join(__dirname, 'assets', 'audio', song.audioFileName);
+                    const audioPath = path.join(config.androidProjectPath, 'audio', song.audioFileName);
                     if (await fs.pathExists(audioPath)) {
                         await fs.remove(audioPath);
                     }
@@ -514,7 +514,7 @@ app.delete('/api/gods/:godId', async (req, res) => {
 
                 // Delete Telugu lyrics file
                 if (song.lyricsTeluguFileName) {
-                    const teluguPath = path.join(__dirname, 'assets', 'lyrics', 'telugu', song.lyricsTeluguFileName);
+                    const teluguPath = path.join(config.androidProjectPath, 'lyrics', 'telugu', song.lyricsTeluguFileName);
                     if (await fs.pathExists(teluguPath)) {
                         await fs.remove(teluguPath);
                     }
@@ -522,7 +522,7 @@ app.delete('/api/gods/:godId', async (req, res) => {
 
                 // Delete English lyrics file
                 if (song.lyricsEnglishFileName) {
-                    const englishPath = path.join(__dirname, 'assets', 'lyrics', 'english', song.lyricsEnglishFileName);
+                    const englishPath = path.join(config.androidProjectPath, 'lyrics', 'english', song.lyricsEnglishFileName);
                     if (await fs.pathExists(englishPath)) {
                         await fs.remove(englishPath);
                     }
@@ -585,21 +585,21 @@ app.delete('/api/songs/:songId', async (req, res) => {
 
         // Delete associated files
         if (songToDelete.audioFileName) {
-            const audioPath = path.join(__dirname, 'assets', 'audio', songToDelete.audioFileName);
+            const audioPath = path.join(config.androidProjectPath, 'audio', songToDelete.audioFileName);
             if (await fs.pathExists(audioPath)) {
                 await fs.remove(audioPath);
             }
         }
 
         if (songToDelete.lyricsTeluguFileName) {
-            const teluguPath = path.join(__dirname, 'assets', 'lyrics', 'telugu', songToDelete.lyricsTeluguFileName);
+            const teluguPath = path.join(config.androidProjectPath, 'lyrics', 'telugu', songToDelete.lyricsTeluguFileName);
             if (await fs.pathExists(teluguPath)) {
                 await fs.remove(teluguPath);
             }
         }
 
         if (songToDelete.lyricsEnglishFileName) {
-            const englishPath = path.join(__dirname, 'assets', 'lyrics', 'english', songToDelete.lyricsEnglishFileName);
+            const englishPath = path.join(config.androidProjectPath, 'lyrics', 'english', songToDelete.lyricsEnglishFileName);
             if (await fs.pathExists(englishPath)) {
                 await fs.remove(englishPath);
             }
