@@ -1205,7 +1205,7 @@ function setupConnectionMonitoring() {
 function handleOnline() {
     isOnline = true;
     updateConnectionStatus();
-    showStatus('🌐 Connection restored! Resuming uploads...', 'success');
+    showStatus('🌐 Connection restored!', 'success');
     resumePausedUploads();
 }
 
@@ -1403,7 +1403,7 @@ function clearCompletedUploads() {
     renderUploadList();
 }
 
-// Render upload list - SIMPLIFIED VERSION
+// Render upload list - OPTIMIZED VERSION (updates only changed elements)
 function renderUploadList() {
     const container = document.getElementById('upload-list');
     const actionsDiv = document.getElementById('upload-actions');
@@ -1414,7 +1414,6 @@ function renderUploadList() {
     
     if (!container) {
         console.error('ERROR: Upload list container not found!');
-        alert('ERROR: Upload container not found! Check console.');
         return;
     }
     
@@ -1422,12 +1421,10 @@ function renderUploadList() {
     const hasCompleted = uploadQueue.some(u => u.status === 'completed');
     if (actionsDiv) {
         actionsDiv.style.display = hasCompleted ? 'block' : 'none';
-        console.log('Clear button visible:', hasCompleted);
     }
     
     // If queue is empty, show empty state
     if (uploadQueue.length === 0) {
-        console.log('Queue is empty, showing empty state');
         container.innerHTML = `
             <div class="empty-upload-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1440,49 +1437,103 @@ function renderUploadList() {
         return;
     }
     
-    // Clear container and rebuild (simple approach)
-    console.log('Rebuilding upload list with', uploadQueue.length, 'items');
-    container.innerHTML = '';
+    // Remove empty state if exists
+    const emptyState = container.querySelector('.empty-upload-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
     
-    // Add all uploads
-    uploadQueue.forEach((upload, index) => {
-        console.log(`Adding upload ${index + 1}:`, upload.songTitle, upload.status, upload.progress + '%');
+    // Process each upload
+    uploadQueue.forEach((upload) => {
+        const uploadId = `upload-item-${upload.id}`;
+        let uploadElement = document.getElementById(uploadId);
         
-        const statusClass = upload.status;
-        const iconHtml = getUploadIcon(upload);
-        const statusText = getStatusText(upload);
-        
-        const uploadItem = document.createElement('div');
-        uploadItem.id = `upload-item-${upload.id}`;
-        uploadItem.className = `upload-item ${statusClass}`;
-        uploadItem.innerHTML = `
-            <div class="upload-item-header">
-                <div class="upload-icon ${statusClass}">
-                    ${iconHtml}
-                </div>
-                <div class="upload-info">
-                    <div class="upload-title">${upload.songTitle}</div>
-                    <div class="upload-details">
-                        <span>🕉️ ${upload.godName}</span>
-                        <span>${statusText}</span>
+        // If element doesn't exist, create it
+        if (!uploadElement) {
+            console.log('Creating new upload item:', upload.songTitle);
+            
+            const statusClass = upload.status;
+            const iconHtml = getUploadIcon(upload);
+            const statusText = getStatusText(upload);
+            
+            uploadElement = document.createElement('div');
+            uploadElement.id = uploadId;
+            uploadElement.className = `upload-item ${statusClass}`;
+            uploadElement.innerHTML = `
+                <div class="upload-item-header">
+                    <div class="upload-icon ${statusClass}" data-icon>
+                        ${iconHtml}
+                    </div>
+                    <div class="upload-info">
+                        <div class="upload-title">${upload.songTitle}</div>
+                        <div class="upload-details">
+                            <span>🕉️ ${upload.godName}</span>
+                            <span data-status-text>${statusText}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="upload-progress">
-                <div class="progress-bar-container">
-                    <div class="progress-bar ${statusClass}" style="width: ${upload.progress}%"></div>
+                <div class="upload-progress">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar ${statusClass}" data-progress-bar style="width: ${upload.progress}%"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span data-status-text-bottom>${statusText}</span>
+                        <span class="progress-percentage" data-percentage>${upload.progress}%</span>
+                    </div>
                 </div>
-                <div class="progress-text">
-                    <span>${statusText}</span>
-                    <span class="progress-percentage">${upload.progress}%</span>
-                </div>
-            </div>
-        `;
-        
-        container.appendChild(uploadItem);
+            `;
+            container.appendChild(uploadElement);
+        } else {
+            // Element exists - update ONLY progress bar and percentage
+            const progressBar = uploadElement.querySelector('[data-progress-bar]');
+            const percentage = uploadElement.querySelector('[data-percentage]');
+            
+            if (progressBar) {
+                // Only update width - smooth transition
+                progressBar.style.width = `${upload.progress}%`;
+            }
+            
+            if (percentage) {
+                // Only update text
+                percentage.textContent = `${upload.progress}%`;
+            }
+            
+            // Only update colors/status when status changes (completed, failed, paused)
+            const currentClass = uploadElement.className.split(' ')[1]; // Get status class
+            if (currentClass !== upload.status) {
+                console.log('Status changed to:', upload.status);
+                
+                // Update main container class
+                uploadElement.className = `upload-item ${upload.status}`;
+                
+                // Update icon
+                const iconElement = uploadElement.querySelector('[data-icon]');
+                if (iconElement) {
+                    iconElement.className = `upload-icon ${upload.status}`;
+                    iconElement.innerHTML = getUploadIcon(upload);
+                }
+                
+                // Update progress bar class
+                if (progressBar) {
+                    progressBar.className = `progress-bar ${upload.status}`;
+                }
+                
+                // Update status text
+                const statusText = getStatusText(upload);
+                const statusTextElements = uploadElement.querySelectorAll('[data-status-text], [data-status-text-bottom]');
+                statusTextElements.forEach(el => el.textContent = statusText);
+            }
+        }
     });
     
-    console.log('Finished rendering. Container children:', container.children.length);
+    // Remove items no longer in queue
+    const existingItems = container.querySelectorAll('[id^="upload-item-"]');
+    existingItems.forEach(item => {
+        const itemId = parseFloat(item.id.replace('upload-item-', ''));
+        if (!uploadQueue.find(u => u.id === itemId)) {
+            item.remove();
+        }
+    });
 }
 
 // Get upload icon based on status
