@@ -15,7 +15,9 @@
   "license": "ISC",
   "description": "Offline web tool for managing Divine Blessing Android app content",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.705.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "fs-extra": "^11.3.2",
     "multer": "^1.4.5-lts.1",

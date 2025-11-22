@@ -1,6 +1,19 @@
 // Global state
 let currentConfig = {};
 let currentData = { gods: [] };
+let uploadQueue = [];
+let isOnline = navigator.onLine;
+let connectionCheckInterval = null;
+
+// Make uploadQueue globally accessible for debugging
+window.uploadQueue = uploadQueue;
+window.debugUploadStatus = function() {
+    console.log('=== DEBUG UPLOAD STATUS ===');
+    console.log('Upload Queue:', uploadQueue);
+    console.log('Queue Length:', uploadQueue.length);
+    console.log('Container exists:', !!document.getElementById('upload-list'));
+    console.log('Actions div exists:', !!document.getElementById('upload-actions'));
+};
 
 // Test if JavaScript is loading
 console.log('JavaScript file loaded successfully');
@@ -18,6 +31,7 @@ window.updateGodPreview = updateGodPreview;
 window.updateSongPreview = updateSongPreview;
 window.deleteGod = deleteGod;
 window.deleteSong = deleteSong;
+window.clearCompletedUploads = clearCompletedUploads;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function () {
@@ -37,15 +51,8 @@ document.addEventListener('DOMContentLoaded', function () {
     setupScrollIndicator();
     setupFormAnimations();
     setupKeyboardShortcutHints();
-
-    // Add error recovery for network issues
-    window.addEventListener('online', () => {
-        showStatus('🌐 Connection restored', 'success');
-    });
-
-    window.addEventListener('offline', () => {
-        showStatus('⚠️ Connection lost - some features may not work', 'error');
-    });
+    setupConnectionMonitoring();
+    initializeUploadStatus();
 });
 
 // Configuration functions
@@ -554,6 +561,18 @@ function setupFormHandlers() {
 
         const godId = document.getElementById('song-god').value;
         const title = document.getElementById('song-title').value.trim();
+        
+        // Get god name for display
+        const godSelect = document.getElementById('song-god');
+        const godName = godSelect.options[godSelect.selectedIndex].text;
+
+        // Double-check internet connection before uploading
+        await checkConnection(); // Force a fresh connection check
+        
+        if (!isOnline) {
+            showStatus('⚠️ No internet connection detected. Cannot upload to cloud. Please check your connection and try again.', 'error');
+            return;
+        }
 
         const formData = new FormData();
         formData.append('title', title); // Only send title, server will auto-generate ID
@@ -577,15 +596,41 @@ function setupFormHandlers() {
             formData.append('lyricsEnglishFile', englishLyricsFile);
         }
 
+        // Add upload to queue and show status
+        const uploadId = addUploadToQueue(title, godName);
+        
+        console.log('Upload added with ID:', uploadId);
+        
+        // Simulate progress for better UX (in real scenario, use XMLHttpRequest for progress)
+        let progressSimulation = 0;
+        
+        // Update progress immediately to show 0%
+        updateUploadProgress(uploadId, 0, 'uploading');
+        
+        const progressInterval = setInterval(() => {
+            if (!isOnline) {
+                clearInterval(progressInterval);
+                updateUploadProgress(uploadId, progressSimulation, 'paused');
+                return;
+            }
+            progressSimulation += 5; // Slower increment for better visibility
+            if (progressSimulation < 85) { // Stop at 85% until server responds
+                updateUploadProgress(uploadId, progressSimulation);
+            }
+        }, 400); // Slower interval for better visibility
+
         try {
             const response = await fetch('/api/songs', {
                 method: 'POST',
                 body: formData
             });
 
+            clearInterval(progressInterval);
+
             const result = await response.json();
 
             if (response.ok) {
+                completeUpload(uploadId);
                 showStatus('✅ Song added successfully! You can add another or press Esc to close.', 'success');
                 // Show version notification
                 if (result.song) {
@@ -600,10 +645,19 @@ function setupFormHandlers() {
                 updateGodDropdown();
                 // Don't close form automatically - let user decide
             } else {
+                failUpload(uploadId, result.error || 'Upload failed');
                 showStatus(result.error || 'Failed to add song', 'error');
             }
         } catch (error) {
-            showStatus('Error adding song: ' + error.message, 'error');
+            clearInterval(progressInterval);
+            
+            if (!isOnline) {
+                updateUploadProgress(uploadId, progressSimulation, 'paused');
+                showStatus('⚠️ Connection lost during upload. Upload paused.', 'error');
+            } else {
+                failUpload(uploadId, error.message);
+                showStatus('Error adding song: ' + error.message, 'error');
+            }
         }
     });
 }
@@ -659,7 +713,9 @@ function displayCurrentData() {
                                 <br>
                                 <small>Language: ${song.languageDefault} | Duration: ${song.duration}ms | Order: ${song.displayOrder}</small>
                                 <br>
-                                <small>Audio: ${song.audioFileName || 'None'}</small>
+                                <small>Audio File: ${song.audioFileName || 'None'}</small>
+                                <br>
+                                <small>Cloud URL: ${song.audioFileURL ? `<a href="${song.audioFileURL}" target="_blank" style="color: #007bff;">${song.audioFileURL}</a>` : 'None'}</small>
                                 <br>
                                 <small>Telugu Lyrics: ${song.lyricsTeluguFileName || 'None'}</small>
                                 <br>
@@ -705,11 +761,12 @@ This action cannot be undone.`,
 
                         if (response.ok) {
                             showStatus('God deleted successfully!', 'success');
+                            // Reload data and refresh display
+                            await loadCurrentData();
+                            displayCurrentData();
                             setTimeout(() => {
                                 showVersionNotification();
-                            }, 1000);
-                            loadCurrentData();
-                            displayCurrentData();
+                            }, 500);
                         } else {
                             showStatus(result.error || 'Failed to delete god', 'error');
                         }
@@ -767,12 +824,13 @@ This action cannot be undone.`,
 
                         if (response.ok) {
                             showStatus('Song deleted successfully!', 'success');
+                            // Reload data and refresh display
+                            await loadCurrentData();
+                            displayCurrentData();
                             setTimeout(() => {
                                 showVersionNotification();
-                            }, 1000);
-                            loadCurrentData();
-                            displayCurrentData();
-                        } else {
+                            }, 500);
+                        } else{
                             showStatus(result.error || 'Failed to delete song', 'error');
                         }
                     } catch (error) {
@@ -1099,4 +1157,387 @@ function setupKeyboardShortcutHints() {
     });
 
     document.body.appendChild(shortcuts);
+}
+
+
+// ============================================
+// UPLOAD STATUS & CONNECTION MONITORING
+// ============================================
+
+// Initialize upload status section
+function initializeUploadStatus() {
+    console.log('Initializing upload status...');
+    const container = document.getElementById('upload-list');
+    console.log('Upload list container exists:', !!container);
+    
+    if (container) {
+        console.log('Container HTML:', container.outerHTML.substring(0, 200));
+        console.log('Container parent:', container.parentElement);
+    }
+    
+    updateConnectionStatus();
+    renderUploadList();
+    
+    // Add a test item to verify rendering works
+    console.log('Adding test to verify container works...');
+}
+
+// Setup connection monitoring
+function setupConnectionMonitoring() {
+    // Set initial online status
+    isOnline = navigator.onLine;
+    
+    // Update connection status immediately
+    updateConnectionStatus();
+    
+    // Check connection immediately on load
+    checkConnection();
+    
+    // Listen for online/offline events
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Check connection every 5 seconds
+    connectionCheckInterval = setInterval(checkConnection, 5000);
+}
+
+// Handle online event
+function handleOnline() {
+    isOnline = true;
+    updateConnectionStatus();
+    showStatus('🌐 Connection restored! Resuming uploads...', 'success');
+    resumePausedUploads();
+}
+
+// Handle offline event
+function handleOffline() {
+    isOnline = false;
+    updateConnectionStatus();
+    showStatus('⚠️ No internet connection. Uploads paused.', 'error');
+    pauseActiveUploads();
+}
+
+// Check connection by pinging an external reliable source
+async function checkConnection() {
+    const wasOnline = isOnline;
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        // Try to fetch from a reliable external source (Google's public DNS)
+        const response = await fetch('https://dns.google/resolve?name=google.com&type=A', { 
+            method: 'GET',
+            mode: 'no-cors', // Important for cross-origin requests
+            cache: 'no-cache',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // If fetch completes without error, we're online
+        isOnline = true;
+        if (!wasOnline) {
+            // Connection restored
+            updateConnectionStatus();
+            showStatus('🌐 Connection restored! Resuming uploads...', 'success');
+            resumePausedUploads();
+        } else {
+            // Just update status without notification
+            updateConnectionStatus();
+        }
+    } catch (error) {
+        // If fetch fails, we're offline
+        isOnline = false;
+        if (wasOnline) {
+            // Connection lost
+            updateConnectionStatus();
+            showStatus('⚠️ No internet connection. Uploads paused.', 'error');
+            pauseActiveUploads();
+        } else {
+            // Still offline, just update status
+            updateConnectionStatus();
+        }
+    }
+}
+
+// Update connection status display
+function updateConnectionStatus() {
+    const indicator = document.getElementById('status-indicator');
+    const text = document.getElementById('connection-text');
+    
+    if (!indicator || !text) return;
+    
+    indicator.className = 'status-indicator';
+    
+    if (isOnline) {
+        indicator.classList.add('online');
+        text.textContent = 'Connected';
+        text.style.color = '#28a745';
+    } else {
+        indicator.classList.add('offline');
+        text.textContent = 'No Internet';
+        text.style.color = '#dc3545';
+    }
+}
+
+// Add upload to queue
+function addUploadToQueue(songTitle, godName) {
+    const uploadId = Date.now() + Math.random();
+    const upload = {
+        id: uploadId,
+        songTitle: songTitle,
+        godName: godName,
+        status: 'uploading', // uploading, completed, failed, paused
+        progress: 0,
+        startTime: Date.now(),
+        error: null
+    };
+    
+    console.log('=== ADDING UPLOAD ===');
+    console.log('Upload object:', upload);
+    console.log('Song Title:', songTitle);
+    console.log('God Name:', godName);
+    
+    uploadQueue.push(upload);
+    window.uploadQueue = uploadQueue; // Update global reference
+    
+    console.log('Upload queue after push:', uploadQueue);
+    console.log('Upload queue length:', uploadQueue.length);
+    console.log('Window.uploadQueue length:', window.uploadQueue.length);
+    
+    // Force immediate render
+    console.log('Calling renderUploadList...');
+    renderUploadList();
+    
+    // Verify the item was added to DOM
+    setTimeout(() => {
+        const uploadItem = document.getElementById(`upload-item-${uploadId}`);
+        console.log('Upload item in DOM:', !!uploadItem);
+        if (uploadItem) {
+            console.log('Upload item HTML:', uploadItem.outerHTML);
+        }
+    }, 100);
+    
+    // Scroll to upload status section smoothly
+    setTimeout(() => {
+        const uploadSection = document.getElementById('upload-status-section');
+        if (uploadSection) {
+            uploadSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, 200);
+    
+    return uploadId;
+}
+
+// Update upload progress
+function updateUploadProgress(uploadId, progress, status = 'uploading') {
+    const upload = uploadQueue.find(u => u.id === uploadId);
+    if (upload) {
+        upload.progress = progress;
+        upload.status = status;
+        renderUploadList();
+    }
+}
+
+// Mark upload as completed
+function completeUpload(uploadId) {
+    const upload = uploadQueue.find(u => u.id === uploadId);
+    if (upload) {
+        upload.status = 'completed';
+        upload.progress = 100;
+        renderUploadList();
+    }
+}
+
+// Mark upload as failed
+function failUpload(uploadId, error) {
+    const upload = uploadQueue.find(u => u.id === uploadId);
+    if (upload) {
+        upload.status = 'failed';
+        upload.error = error;
+        renderUploadList();
+    }
+}
+
+// Pause active uploads
+function pauseActiveUploads() {
+    uploadQueue.forEach(upload => {
+        if (upload.status === 'uploading') {
+            upload.status = 'paused';
+        }
+    });
+    renderUploadList();
+}
+
+// Resume paused uploads
+function resumePausedUploads() {
+    const pausedUploads = uploadQueue.filter(u => u.status === 'paused');
+    if (pausedUploads.length > 0) {
+        showStatus(`🔄 Resuming ${pausedUploads.length} paused upload(s)...`, 'info');
+        // Note: Actual resume logic would need to be implemented in the form submission
+        // For now, we just update the UI
+    }
+}
+
+// Clear completed uploads
+function clearCompletedUploads() {
+    const beforeCount = uploadQueue.length;
+    
+    // Remove completed uploads from array (don't reassign, modify in place)
+    for (let i = uploadQueue.length - 1; i >= 0; i--) {
+        if (uploadQueue[i].status === 'completed') {
+            uploadQueue.splice(i, 1);
+        }
+    }
+    
+    const clearedCount = beforeCount - uploadQueue.length;
+    
+    if (clearedCount > 0) {
+        showStatus(`🗑️ Cleared ${clearedCount} completed upload(s)`, 'success');
+    }
+    
+    // Update global reference
+    window.uploadQueue = uploadQueue;
+    
+    renderUploadList();
+}
+
+// Render upload list - SIMPLIFIED VERSION
+function renderUploadList() {
+    const container = document.getElementById('upload-list');
+    const actionsDiv = document.getElementById('upload-actions');
+    
+    console.log('=== RENDER UPLOAD LIST ===');
+    console.log('Queue length:', uploadQueue.length);
+    console.log('Container exists:', !!container);
+    
+    if (!container) {
+        console.error('ERROR: Upload list container not found!');
+        alert('ERROR: Upload container not found! Check console.');
+        return;
+    }
+    
+    // Show/hide actions based on completed uploads
+    const hasCompleted = uploadQueue.some(u => u.status === 'completed');
+    if (actionsDiv) {
+        actionsDiv.style.display = hasCompleted ? 'block' : 'none';
+        console.log('Clear button visible:', hasCompleted);
+    }
+    
+    // If queue is empty, show empty state
+    if (uploadQueue.length === 0) {
+        console.log('Queue is empty, showing empty state');
+        container.innerHTML = `
+            <div class="empty-upload-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p style="margin: 0; font-weight: 500;">No uploads yet</p>
+                <small style="color: #999;">Add a song to see upload progress here</small>
+            </div>
+        `;
+        return;
+    }
+    
+    // Clear container and rebuild (simple approach)
+    console.log('Rebuilding upload list with', uploadQueue.length, 'items');
+    container.innerHTML = '';
+    
+    // Add all uploads
+    uploadQueue.forEach((upload, index) => {
+        console.log(`Adding upload ${index + 1}:`, upload.songTitle, upload.status, upload.progress + '%');
+        
+        const statusClass = upload.status;
+        const iconHtml = getUploadIcon(upload);
+        const statusText = getStatusText(upload);
+        
+        const uploadItem = document.createElement('div');
+        uploadItem.id = `upload-item-${upload.id}`;
+        uploadItem.className = `upload-item ${statusClass}`;
+        uploadItem.innerHTML = `
+            <div class="upload-item-header">
+                <div class="upload-icon ${statusClass}">
+                    ${iconHtml}
+                </div>
+                <div class="upload-info">
+                    <div class="upload-title">${upload.songTitle}</div>
+                    <div class="upload-details">
+                        <span>🕉️ ${upload.godName}</span>
+                        <span>${statusText}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="upload-progress">
+                <div class="progress-bar-container">
+                    <div class="progress-bar ${statusClass}" style="width: ${upload.progress}%"></div>
+                </div>
+                <div class="progress-text">
+                    <span>${statusText}</span>
+                    <span class="progress-percentage">${upload.progress}%</span>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(uploadItem);
+    });
+    
+    console.log('Finished rendering. Container children:', container.children.length);
+}
+
+// Get upload icon based on status
+function getUploadIcon(upload) {
+    switch (upload.status) {
+        case 'uploading':
+            return ''; // Empty for spinning border
+        case 'completed':
+            return '✓';
+        case 'failed':
+            return '✕';
+        case 'paused':
+            return '⏸';
+        default:
+            return '';
+    }
+}
+
+// Get status text
+function getStatusText(upload) {
+    switch (upload.status) {
+        case 'uploading':
+            return '☁️ Uploading to cloud...';
+        case 'completed':
+            return '✅ Upload complete';
+        case 'failed':
+            return `❌ Failed: ${upload.error || 'Unknown error'}`;
+        case 'paused':
+            return '⏸ Paused (No internet)';
+        default:
+            return 'Unknown status';
+    }
+}
+
+// Simulate upload progress (for demonstration)
+function simulateUploadProgress(uploadId, duration = 5000) {
+    const steps = 20;
+    const interval = duration / steps;
+    let currentStep = 0;
+    
+    const progressInterval = setInterval(() => {
+        if (!isOnline) {
+            clearInterval(progressInterval);
+            updateUploadProgress(uploadId, currentStep * 5, 'paused');
+            return;
+        }
+        
+        currentStep++;
+        const progress = Math.min((currentStep / steps) * 100, 100);
+        
+        if (currentStep >= steps) {
+            clearInterval(progressInterval);
+            completeUpload(uploadId);
+        } else {
+            updateUploadProgress(uploadId, Math.floor(progress));
+        }
+    }, interval);
 }

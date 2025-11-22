@@ -13,153 +13,176 @@
             <p>Offline content management for your Android app</p>
         </header>
 
-        <!-- Configuration Section -->
-        <section id="config-section" class="card">
-            <div id="config-header" class="config-header">
-                <h2>📁 Configuration</h2>
-                <div id="config-summary" class="config-summary">
-                    <span id="config-status-text">Using default assets folder files</span>
-                    <button onclick="toggleConfigForm()" class="btn-edit" id="config-edit-btn">Edit</button>
-                </div>
-            </div>
-            
-            <div id="config-form" class="config-form" style="display: none;">
-                <div class="form-group">
-                    <label for="json-path">JSON File Path:</label>
-                    <div class="input-with-button">
-                        <input type="text" id="json-path" placeholder="Leave empty to use assets/gods_songs.json">
-                        <button onclick="browseJsonFile()" class="btn-browse">Browse</button>
-                    </div>
-                    <small class="help-text">
-                        ✅ Leave empty to use assets folder file: <code>assets/gods_songs.json</code><br>
-                        📝 Custom path example: <code>C:\Users\nagas\Desktop\gods_songs.json</code><br>
-                        ✅ Empty JSON files are supported - will be initialized automatically
-                    </small>
-                </div>
-                <div class="form-group">
-                    <label for="android-path">Assets Folder Path (optional):</label>
-                    <div class="input-with-button">
-                        <input type="text" id="android-path" placeholder="Leave empty to use local assets folder">
-                        <button onclick="browseAssetsFolder()" class="btn-browse">Browse</button>
-                    </div>
-                    <small class="help-text">
-                        ✅ Leave empty to use local assets folder in this project<br>
-                        📝 Custom path example: <code>C:\Users\nagas\Desktop\MyProject\assets</code>
-                    </small>
-                </div>
-                <div class="form-actions">
-                    <button onclick="saveConfig()" class="btn-primary">Save Configuration</button>
-                    <button onclick="toggleConfigForm()" class="btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Main Actions -->
-        <section id="actions-section" class="card" style="display: block;">
-            <h2>⚡ Actions</h2>
-            <div class="action-buttons">
-                <button onclick="showAddGodForm()" class="btn-action">➕ Add God</button>
-                <button onclick="showAddSongForm()" class="btn-action">🎵 Add Song</button>
-                <button onclick="viewCurrentData()" class="btn-action">👁️ View Data</button>
-            </div>
-        </section>
-
-
-
-        <!-- Add God Form -->
-        <section id="add-god-section" class="card" style="display: none;">
-            <h2>➕ Add New God</h2>
-            <form id="god-form" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="god-name">God Name:</label>
-                    <input type="text" id="god-name" required placeholder="e.g., Shiva" oninput="updateGodPreview()">
-                    <div id="god-preview" class="preview-box" style="display: none;">
-                        <div class="preview-item">
-                            <strong>Generated ID:</strong> <span id="preview-god-id"></span>
-                        </div>
-                        <div class="preview-item">
-                            <strong>Final Name:</strong> <span id="preview-god-name"></span>
+        <!-- Two Column Layout -->
+        <div class="two-column-layout">
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Configuration Section -->
+                <section id="config-section" class="card">
+                    <div id="config-header" class="config-header">
+                        <h2>📁 Configuration</h2>
+                        <div id="config-summary" class="config-summary">
+                            <span id="config-status-text">Using default assets folder files</span>
+                            <button onclick="toggleConfigForm()" class="btn-edit" id="config-edit-btn">Edit</button>
                         </div>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label for="god-display-order">Display Order:</label>
-                    <input type="number" id="god-display-order" value="1" min="1">
-                </div>
-                <div class="form-group">
-                    <label for="god-image">God Image:</label>
-                    <input type="file" id="god-image" accept="image/*">
-                    <small>Will be copied to assets/images/</small>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Add God</button>
-                    <button type="button" onclick="hideAllForms()" class="btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </section>
-
-        <!-- Add Song Form -->
-        <section id="add-song-section" class="card" style="display: none;">
-            <h2>🎵 Add New Song</h2>
-            <form id="song-form" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="song-god">Select God:</label>
-                    <select id="song-god" required onchange="updateSongPreview()">
-                        <option value="">Choose a god...</option>
-                    </select>
-                    <div id="song-preview" class="preview-box" style="display: none;">
-                        <div class="preview-item">
-                            <strong>Generated Song ID:</strong> <span id="preview-song-id"></span>
+                    
+                    <div id="config-form" class="config-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="json-path">JSON File Path:</label>
+                            <div class="input-with-button">
+                                <input type="text" id="json-path" placeholder="Leave empty to use assets/gods_songs.json">
+                                <button onclick="browseJsonFile()" class="btn-browse">Browse</button>
+                            </div>
+                            <small class="help-text">
+                                ✅ Leave empty to use assets folder file: <code>assets/gods_songs.json</code><br>
+                                📝 Custom path example: <code>C:\Users\nagas\Desktop\gods_songs.json</code><br>
+                                ✅ Empty JSON files are supported - will be initialized automatically
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="android-path">Assets Folder Path (optional):</label>
+                            <div class="input-with-button">
+                                <input type="text" id="android-path" placeholder="Leave empty to use local assets folder">
+                                <button onclick="browseAssetsFolder()" class="btn-browse">Browse</button>
+                            </div>
+                            <small class="help-text">
+                                ✅ Leave empty to use local assets folder in this project<br>
+                                📝 Custom path example: <code>C:\Users\nagas\Desktop\MyProject\assets</code>
+                            </small>
+                        </div>
+                        <div class="form-actions">
+                            <button onclick="saveConfig()" class="btn-primary">Save Configuration</button>
+                            <button onclick="toggleConfigForm()" class="btn-secondary">Cancel</button>
                         </div>
                     </div>
-                </div>
-                <div class="form-group">
-                    <label for="song-title">Song Title:</label>
-                    <input type="text" id="song-title" required placeholder="e.g., Shiva Tandava Stotram">
-                </div>
-                <div class="form-group">
-                    <label for="song-language">Default Language:</label>
-                    <select id="song-language">
-                        <option value="telugu">Telugu</option>
-                        <option value="english">English</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="song-audio">Audio File:</label>
-                    <input type="file" id="song-audio" accept="audio/*">
-                    <small>Will be copied to assets/audio/</small>
-                </div>
-                <div class="form-group">
-                    <label for="song-lyrics-telugu">Telugu Lyrics File:</label>
-                    <input type="file" id="song-lyrics-telugu" accept=".lrc,.txt">
-                    <small>Will be copied to assets/lyrics/telugu/</small>
-                </div>
-                <div class="form-group">
-                    <label for="song-lyrics-english">English Lyrics File:</label>
-                    <input type="file" id="song-lyrics-english" accept=".lrc,.txt">
-                    <small>Will be copied to assets/lyrics/english/</small>
-                </div>
-                <div class="form-group">
-                    <label for="song-duration">Duration (milliseconds):</label>
-                    <input type="number" id="song-duration" value="0" min="0">
-                </div>
-                <div class="form-group">
-                    <label for="song-display-order">Display Order:</label>
-                    <input type="number" id="song-display-order" value="1" min="1">
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Add Song</button>
-                    <button type="button" onclick="hideAllForms()" class="btn-secondary">Cancel</button>
-                </div>
-            </form>
-        </section>
+                </section>
 
-        <!-- Data Viewer -->
-        <section id="data-viewer-section" class="card" style="display: none;">
-            <h2>👁️ Current Data</h2>
-            <div id="data-content"></div>
-            <button onclick="hideAllForms()" class="btn-secondary">Close</button>
-        </section>
+                <!-- Main Actions -->
+                <section id="actions-section" class="card" style="display: block;">
+                    <h2>⚡ Actions</h2>
+                    <div class="action-buttons">
+                        <button onclick="showAddGodForm()" class="btn-action">➕ Add God</button>
+                        <button onclick="showAddSongForm()" class="btn-action">🎵 Add Song</button>
+                        <button onclick="viewCurrentData()" class="btn-action">👁️ View Data</button>
+                    </div>
+                </section>
+
+                <!-- Add God Form -->
+                <section id="add-god-section" class="card" style="display: none;">
+                    <h2>➕ Add New God</h2>
+                    <form id="god-form" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="god-name">God Name:</label>
+                            <input type="text" id="god-name" required placeholder="e.g., Shiva" oninput="updateGodPreview()">
+                            <div id="god-preview" class="preview-box" style="display: none;">
+                                <div class="preview-item">
+                                    <strong>Generated ID:</strong> <span id="preview-god-id"></span>
+                                </div>
+                                <div class="preview-item">
+                                    <strong>Final Name:</strong> <span id="preview-god-name"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="god-display-order">Display Order:</label>
+                            <input type="number" id="god-display-order" value="1" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="god-image">God Image:</label>
+                            <input type="file" id="god-image" accept="image/*">
+                            <small>Will be copied to assets/images/</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Add God</button>
+                            <button type="button" onclick="hideAllForms()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Add Song Form -->
+                <section id="add-song-section" class="card" style="display: none;">
+                    <h2>🎵 Add New Song</h2>
+                    <form id="song-form" enctype="multipart/form-data">
+                        <div class="form-group">
+                            <label for="song-god">Select God:</label>
+                            <select id="song-god" required onchange="updateSongPreview()">
+                                <option value="">Choose a god...</option>
+                            </select>
+                            <div id="song-preview" class="preview-box" style="display: none;">
+                                <div class="preview-item">
+                                    <strong>Generated Song ID:</strong> <span id="preview-song-id"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="song-title">Song Title:</label>
+                            <input type="text" id="song-title" required placeholder="e.g., Shiva Tandava Stotram">
+                        </div>
+                        <div class="form-group">
+                            <label for="song-language">Default Language:</label>
+                            <select id="song-language">
+                                <option value="telugu">Telugu</option>
+                                <option value="english">English</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="song-audio">Audio File:</label>
+                            <input type="file" id="song-audio" accept="audio/*">
+                            <small>Will be copied to assets/audio/</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="song-lyrics-telugu">Telugu Lyrics File:</label>
+                            <input type="file" id="song-lyrics-telugu" accept=".lrc,.txt">
+                            <small>Will be copied to assets/lyrics/telugu/</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="song-lyrics-english">English Lyrics File:</label>
+                            <input type="file" id="song-lyrics-english" accept=".lrc,.txt">
+                            <small>Will be copied to assets/lyrics/english/</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="song-duration">Duration (milliseconds):</label>
+                            <input type="number" id="song-duration" value="0" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="song-display-order">Display Order:</label>
+                            <input type="number" id="song-display-order" value="1" min="1">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Add Song</button>
+                            <button type="button" onclick="hideAllForms()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Data Viewer -->
+                <section id="data-viewer-section" class="card" style="display: none;">
+                    <h2>👁️ Current Data</h2>
+                    <div id="data-content"></div>
+                    <button onclick="hideAllForms()" class="btn-secondary">Close</button>
+                </section>
+            </div>
+
+            <!-- Right Column - Upload Status (Always Visible) -->
+            <div class="right-column">
+                <section id="upload-status-section" class="card" style="display: block;">
+                    <div class="upload-status-header">
+                        <h2>📤 Upload Status</h2>
+                        <div class="connection-status" id="connection-status">
+                            <span class="status-indicator" id="status-indicator"></span>
+                            <span id="connection-text">Checking connection...</span>
+                        </div>
+                    </div>
+                    <div id="upload-list" class="upload-list">
+                        <!-- Upload items will be added here dynamically -->
+                    </div>
+                    <div class="upload-actions" style="display: none;" id="upload-actions">
+                        <button onclick="clearCompletedUploads()" class="btn-secondary">Clear Completed</button>
+                    </div>
+                </section>
+            </div>
+        </div>
 
         <!-- Status Messages -->
         <div id="status-messages"></div>

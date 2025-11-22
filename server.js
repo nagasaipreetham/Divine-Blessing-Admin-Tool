@@ -1,11 +1,81 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs-extra');
 const path = require('path');
 const cors = require('cors');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// Configure Cloudflare R2 client
+const r2Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
+});
+
+// Helper function to upload file to R2
+async function uploadToR2(filePath, fileName, folder = 'audio') {
+    try {
+        const fileContent = await fs.readFile(filePath);
+        const key = `${folder}/${fileName}`;
+        
+        const command = new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: key,
+            Body: fileContent,
+            ContentType: getContentType(fileName),
+        });
+
+        await r2Client.send(command);
+        
+        const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`;
+        console.log(`✅ Uploaded to R2: ${publicUrl}`);
+        return publicUrl;
+    } catch (error) {
+        console.error('❌ Error uploading to R2:', error);
+        throw error;
+    }
+}
+
+// Helper function to delete file from R2
+async function deleteFromR2(fileUrl) {
+    try {
+        // Extract the key from the URL
+        const urlObj = new URL(fileUrl);
+        const key = urlObj.pathname.substring(1); // Remove leading slash
+        
+        const command = new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: key,
+        });
+
+        await r2Client.send(command);
+        console.log(`✅ Deleted from R2: ${key}`);
+    } catch (error) {
+        console.error('❌ Error deleting from R2:', error);
+        throw error;
+    }
+}
+
+// Helper function to get content type
+function getContentType(fileName) {
+    const ext = path.extname(fileName).toLowerCase();
+    const contentTypes = {
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.m4a': 'audio/mp4',
+        '.lrc': 'text/plain',
+        '.txt': 'text/plain',
+    };
+    return contentTypes[ext] || 'application/octet-stream';
+}
 
 // Middleware
 app.use(cors());
@@ -393,20 +463,30 @@ app.post('/api/songs', upload.fields([
         const autoId = generateSongId(godId, data.gods);
 
         let audioFileName = '';
+        let audioFileURL = '';
         let teluguLyricsFileName = '';
         let englishLyricsFileName = '';
 
         if (req.files) {
             if (req.files.audio && req.files.audio[0]) {
+                const audioFile = req.files.audio[0];
+                audioFileName = audioFile.originalname;
+                
+                // Upload to R2 cloud storage
+                try {
+                    audioFileURL = await uploadToR2(audioFile.path, audioFile.originalname, 'audio');
+                    console.log(`✅ Audio uploaded to cloud: ${audioFileURL}`);
+                } catch (error) {
+                    console.error('❌ Failed to upload audio to R2:', error);
+                    return res.status(500).json({ error: 'Failed to upload audio to cloud storage' });
+                }
+                
+                // Also copy to local assets folder for backup
                 const audioDir = path.join(config.androidProjectPath, 'audio');
                 await fs.ensureDir(audioDir);
-
-                const audioFile = req.files.audio[0];
                 const audioPath = path.join(audioDir, audioFile.originalname);
                 await fs.copy(audioFile.path, audioPath);
                 await fs.remove(audioFile.path);
-
-                audioFileName = audioFile.originalname;
             }
 
             if (req.files.lyricsTeluguFile && req.files.lyricsTeluguFile[0]) {
@@ -440,6 +520,7 @@ app.post('/api/songs', upload.fields([
             godId,
             languageDefault: languageDefault || 'telugu',
             audioFileName,
+            audioFileURL,
             lyricsTeluguFileName: teluguLyricsFileName || null,
             lyricsEnglishFileName: englishLyricsFileName || null,
             duration: parseInt(duration) || 0,
@@ -504,7 +585,18 @@ app.delete('/api/gods/:godId', async (req, res) => {
         // Delete all song files for this god
         if (god.songs && god.songs.length > 0) {
             for (const song of god.songs) {
-                // Delete audio file
+                // Delete from R2 cloud storage
+                if (song.audioFileURL) {
+                    try {
+                        await deleteFromR2(song.audioFileURL);
+                        console.log(`✅ Deleted audio from cloud: ${song.audioFileURL}`);
+                    } catch (error) {
+                        console.error('❌ Failed to delete from R2:', error);
+                        // Continue with local deletion even if cloud deletion fails
+                    }
+                }
+
+                // Delete local audio file
                 if (song.audioFileName) {
                     const audioPath = path.join(config.androidProjectPath, 'audio', song.audioFileName);
                     if (await fs.pathExists(audioPath)) {
@@ -583,7 +675,18 @@ app.delete('/api/songs/:songId', async (req, res) => {
             return res.status(404).json({ error: 'Song not found' });
         }
 
-        // Delete associated files
+        // Delete from R2 cloud storage
+        if (songToDelete.audioFileURL) {
+            try {
+                await deleteFromR2(songToDelete.audioFileURL);
+                console.log(`✅ Deleted audio from cloud: ${songToDelete.audioFileURL}`);
+            } catch (error) {
+                console.error('❌ Failed to delete from R2:', error);
+                // Continue with local deletion even if cloud deletion fails
+            }
+        }
+
+        // Delete local audio file
         if (songToDelete.audioFileName) {
             const audioPath = path.join(config.androidProjectPath, 'audio', songToDelete.audioFileName);
             if (await fs.pathExists(audioPath)) {
