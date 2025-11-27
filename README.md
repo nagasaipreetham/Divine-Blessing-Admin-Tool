@@ -1,12 +1,13 @@
 # 🕉️ Divine Blessing Admin Tool
 
-> **Offline web-based content management system for Android App - Divine Blessings**
+> **Web-based content management system with cloud storage for Android devotional apps**
 
-A powerful, user-friendly admin interface for managing gods, songs, and multimedia content for Android devotional applications. Built with Node.js and vanilla JavaScript for simplicity and reliability.
+A powerful, user-friendly admin interface for managing gods, songs, and multimedia content for Android devotional applications. Features real-time upload tracking, cloud storage integration, and automatic versioning.
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](package.json)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-v14+-brightgreen.svg)](https://nodejs.org/)
+[![Cloud](https://img.shields.io/badge/cloud-Cloudflare%20R2-orange.svg)](https://www.cloudflare.com/products/r2/)
 
 ## 📋 Table of Contents
 
@@ -28,23 +29,33 @@ A powerful, user-friendly admin interface for managing gods, songs, and multimed
 ### 🎯 **Core Functionality**
 - **God Management**: Add, view, and delete gods with images and metadata
 - **Song Management**: Add songs with audio files, lyrics (Telugu & English), and metadata
+- **Cloud Storage**: Automatic upload to Cloudflare R2 with public URLs
 - **File Organization**: Automatic file copying and organization in assets folder
 - **Data Validation**: Form validation and error handling
 - **Real-time Preview**: View current data structure instantly
 
+### 📤 **Upload Status & Monitoring**
+- **Real-time Progress**: Live upload progress with percentage and progress bar
+- **Connection Monitoring**: Automatic internet connection detection
+- **Auto Pause/Resume**: Uploads pause when offline, resume when connection restored
+- **Smooth Updates**: Only progress bar and percentage update during upload (no flickering)
+- **Status Persistence**: Completed uploads remain visible until manually cleared
+- **Visual Feedback**: Color-coded status (uploading, completed, failed, paused)
+
 ### 🚀 **User Experience**
-- **Clean Interface**: Modern, responsive web UI
-- **Drag & Drop**: Easy file uploads with browse functionality
+- **Two-Column Layout**: Forms on left, upload status on right (sticky)
+- **Responsive Design**: Works on desktop, tablet, and mobile
 - **Auto-generation**: Automatic ID generation from names
-- **Keyboard Shortcuts**: Quick access to common actions
-- **Status Feedback**: Real-time status messages and progress indicators
+- **Keyboard Shortcuts**: Quick access to common actions (Ctrl+G, Ctrl+S, Ctrl+D, Esc)
+- **Status Feedback**: Real-time status messages and notifications
 - **Version Tracking**: Automatic versioning with timestamp display
-- **Offline Operation**: Works completely offline - no internet required
+- **Auto-reload**: View data automatically refreshes after deletions
 
 ### 🔧 **Technical Features**
+- **Cloud Integration**: Cloudflare R2 (S3-compatible) for audio storage
+- **Dual Storage**: Files stored in cloud AND locally as backup
 - **Default Configuration**: Uses local assets folder by default
 - **Custom Paths**: Support for custom JSON and assets folder locations
-- **File Management**: Automatic file copying and organization
 - **Error Recovery**: Graceful error handling and recovery
 - **Cross-platform**: Works on Windows, macOS, and Linux
 
@@ -86,7 +97,7 @@ assets/
 ### **JSON Structure Example**
 ```json
 {
-  "version": "20251007203758",
+  "version": "20251122152230",
   "gods": [
     {
       "id": "god_shiva",
@@ -95,11 +106,12 @@ assets/
       "displayOrder": 1,
       "songs": [
         {
-          "id": "song_shiva_1",
+          "id": "song_shiva_20251122152230",
           "title": "Shiva Tandava Stotram",
           "godId": "god_shiva",
           "languageDefault": "telugu",
           "audioFileName": "song_shiva_1.mp3",
+          "audioFileURL": "https://pub-ea778d24afc5464bbb1b2c6c823d331b.r2.dev/audio/song_shiva_1.mp3",
           "lyricsTeluguFileName": "song_shiva_1_te.lrc",
           "lyricsEnglishFileName": "song_shiva_1_en.lrc",
           "duration": 420000,
@@ -110,6 +122,8 @@ assets/
   ]
 }
 ```
+
+**Note**: `audioFileURL` contains the public cloud URL for streaming/downloading the audio file.
 
 ### **Workflow**
 1. **Configure** → Set paths (or use defaults)
@@ -124,18 +138,27 @@ assets/
 - **Multer**: Multipart form handling for file uploads
 - **fs-extra**: Enhanced file system operations
 - **CORS**: Cross-origin resource sharing support
+- **AWS SDK**: S3-compatible client for Cloudflare R2
+
+### **Cloud Storage (Cloudflare R2)**
+- **S3-Compatible**: Uses AWS SDK for S3-compatible operations
+- **Public URLs**: Automatic generation of public access URLs
+- **Automatic Upload**: Audio files uploaded during song creation
+- **Automatic Cleanup**: Files deleted from cloud when songs/gods are removed
+- **Dual Storage**: Cloud storage + local backup for reliability
 
 ### **Frontend (Vanilla JavaScript)**
 - **Modern ES6+**: Clean, maintainable JavaScript
-- **Responsive Design**: CSS Grid and Flexbox
-- **Progressive Enhancement**: Works without JavaScript for basic functionality
+- **Responsive Design**: CSS Grid and Flexbox with two-column layout
+- **Real-time Updates**: Live upload progress with smooth animations
+- **Connection Monitoring**: Automatic internet status detection
 - **File API**: Modern browser file handling
 
 ### **Data Management**
-- **JSON Storage**: Human-readable data format
+- **JSON Storage**: Human-readable data format with versioning
 - **Atomic Operations**: Safe file operations with error recovery
 - **Validation**: Client and server-side data validation
-- **Backup**: Automatic backup creation before modifications
+- **Auto-versioning**: Timestamp-based version tracking on every change
 
 ## 🚀 Installation
 
@@ -143,6 +166,12 @@ assets/
 - **Node.js** v14 or higher
 - **npm** (comes with Node.js)
 - Modern web browser (Chrome, Firefox, Safari, Edge)
+- **Cloudflare R2 Account** (for cloud storage features)
+  - R2 Account ID
+  - R2 Access Key ID
+  - R2 Secret Access Key
+  - R2 Bucket Name
+  - R2 Public URL
 
 ### **Quick Start**
 ```bash
@@ -151,6 +180,17 @@ cd divine-blessing-admin-tool
 
 # Install dependencies
 npm install
+
+# Configure environment variables
+# Copy .env.example to .env and fill in your Cloudflare R2 credentials
+cp .env.example .env
+
+# Edit .env file with your R2 credentials
+# R2_ACCOUNT_ID=your_account_id
+# R2_ACCESS_KEY_ID=your_access_key
+# R2_SECRET_ACCESS_KEY=your_secret_key
+# R2_BUCKET_NAME=your_bucket_name
+# R2_PUBLIC_URL=https://your-bucket-url.r2.dev
 
 # Start the server
 npm start
@@ -193,18 +233,30 @@ The application will be available at: **http://localhost:3000**
    - **Song ID**: Unique identifier (auto-generated)
    - **Title**: Song display name
    - **Language**: Default language (Telugu/English)
-   - **Audio File**: Song audio file
+   - **Audio File**: Song audio file (will be uploaded to cloud)
    - **Lyrics**: Telugu and/or English lyrics files
    - **Duration**: Song duration in milliseconds
    - **Display Order**: Sorting order
 4. **Submit**: Click "Add Song"
+5. **Monitor Upload**: Watch real-time progress in Upload Status section (right column)
+   - Progress bar shows upload percentage
+   - Status updates automatically
+   - Completed uploads remain visible until cleared
 
-### **4. Managing Data**
-- **View Data**: Click "View Data" to see current structure
-- **Delete Items**: Use delete buttons in data view
+### **4. Monitoring Uploads**
+- **Upload Status Section**: Always visible in right column
+- **Real-time Progress**: See upload percentage and progress bar
+- **Connection Status**: Green dot = online, Red dot = offline
+- **Auto Pause/Resume**: Uploads pause when offline, resume when connection restored
+- **Clear Completed**: Click "Clear Completed" to remove finished uploads
+
+### **5. Managing Data**
+- **View Data**: Click "View Data" to see current structure with cloud URLs
+- **Delete Items**: Use delete buttons in data view (auto-reloads after deletion)
+- **Cloud Cleanup**: Deleting songs/gods automatically removes files from cloud
 - **Edit**: Currently requires manual JSON editing
 
-### **5. Keyboard Shortcuts**
+### **6. Keyboard Shortcuts**
 - **Ctrl+G**: Add God
 - **Ctrl+S**: Add Song  
 - **Ctrl+D**: View Data
@@ -276,9 +328,26 @@ You can specify custom paths through the web interface:
 - **Assets Folder Path**: Full path to your assets directory
 
 ### **Environment Variables**
+Create a `.env` file in the project root:
+
 ```bash
-PORT=3000                       # Server port (optional)
+# Cloudflare R2 Configuration (Required for cloud storage)
+R2_ACCOUNT_ID=your_account_id_here
+R2_ACCESS_KEY_ID=your_access_key_here
+R2_SECRET_ACCESS_KEY=your_secret_key_here
+R2_BUCKET_NAME=your_bucket_name_here
+R2_PUBLIC_URL=https://your-bucket-url.r2.dev
+
+# Server Configuration (Optional)
+PORT=3000
 ```
+
+**Getting Cloudflare R2 Credentials:**
+1. Sign up for Cloudflare account
+2. Navigate to R2 Object Storage
+3. Create a new bucket
+4. Generate API tokens with read/write permissions
+5. Copy credentials to `.env` file
 
 ## 🛠️ Development
 
@@ -289,10 +358,12 @@ PORT=3000                       # Server port (optional)
 - **File Handling**: Multer for uploads, fs-extra for file operations
 
 ### **Key Files**
-- **`server.js`**: Main server logic and API endpoints
-- **`public/app.js`**: Frontend application logic
-- **`public/index.html`**: User interface structure
-- **`public/styles.css`**: Application styling
+- **`server.js`**: Main server logic, API endpoints, and R2 integration
+- **`public/app.js`**: Frontend application logic with upload monitoring
+- **`public/index.html`**: User interface structure (two-column layout)
+- **`public/styles.css`**: Application styling with responsive design
+- **`.env`**: Environment variables (R2 credentials, not in git)
+- **`.env.example`**: Template for environment variables
 
 ### **Adding Features**
 1. **Backend**: Add routes in `server.js`
@@ -329,6 +400,20 @@ PORT=3001 npm start
 - **Check file permissions** in uploads directory
 - **Verify file size limits** (default: no limit)
 - **Ensure proper file types** are being uploaded
+- **Check R2 credentials** in `.env` file
+- **Verify internet connection** for cloud uploads
+
+#### **Upload Status Not Showing**
+- **Check browser console** (F12) for errors
+- **Verify upload-list container** exists in HTML
+- **Check internet connection** status indicator
+- **Refresh page** and try again
+
+#### **Cloud Upload Failures**
+- **Verify R2 credentials** are correct in `.env`
+- **Check R2 bucket permissions** (read/write access)
+- **Ensure R2_PUBLIC_URL** is correct
+- **Check internet connection** is stable
 
 #### **JSON File Corruption**
 - **Backup**: Automatic backups are created before modifications
@@ -387,6 +472,21 @@ copyright notice and this permission notice appear in all copies.
 - **Express.js** - Fast, unopinionated web framework
 - **Multer** - Node.js middleware for handling multipart/form-data
 - **fs-extra** - Extra file system methods for Node.js
+- **AWS SDK** - S3-compatible client for cloud storage
+- **Cloudflare R2** - Affordable, S3-compatible object storage
+
+---
+
+## 🌟 Key Highlights
+
+✅ **Real-time Upload Tracking** - Monitor upload progress with live percentage updates  
+✅ **Cloud Storage Integration** - Automatic upload to Cloudflare R2 with public URLs  
+✅ **Connection Monitoring** - Auto-pause/resume uploads based on internet status  
+✅ **Smooth UI Updates** - Only progress bar updates during upload (no flickering)  
+✅ **Auto-reload** - View data refreshes automatically after deletions  
+✅ **Dual Storage** - Files stored in cloud AND locally for reliability  
+✅ **Two-Column Layout** - Forms on left, upload status on right (sticky)  
+✅ **Automatic Versioning** - Every change updates version timestamp  
 
 ---
 
@@ -396,9 +496,10 @@ For issues, questions, or contributions:
 - **Create an issue** in the repository
 - **Check existing documentation** in this README
 - **Review troubleshooting section** above
+- **Check browser console** (F12) for detailed error logs
 
 **Made with ❤️ for devotional app developers**
 
 ---
 
-*Last updated: October 2024*
+*Last updated: November 2024*
